@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>1812 — La Grande Armée · after Minard</title>
+<style>
+  :root{
+    --bg:#e8ddc0; --panel:#e3d7b8; --ink:#2f2818; --dim:#6b5c42; --faint:#a08e6c;
+    --advance:#b98c46; --advance-hi:#7c5218; --retreat:#2e5871; --retreat-hi:#24475e;
+    --blood:#8c2f1b; --rule:#b9aa85;
+    font-size:15px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{color:var(--ink);
+    font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;}
+  body{display:flex; flex-direction:column; align-items:center; padding:28px 16px 40px;
+    background:radial-gradient(ellipse at 50% 20%, #f1e8ce 0%, #e8ddc0 55%, #dccda8 100%) fixed;}
+  .wrap{width:min(1120px,100%);}
+
+  header{display:flex; align-items:flex-end; justify-content:space-between; gap:16px;
+    border-bottom:1px solid var(--rule); padding-bottom:14px; margin-bottom:14px;}
+  h1{font-size:31px; letter-spacing:.15em; font-weight:600; color:var(--ink);
+    font-family:"Bodoni 72",Didot,"Iowan Old Style",Georgia,serif;}
+  h1 .year{color:var(--blood);}
+  .subtitle{color:var(--dim); font-style:italic; font-size:14px; margin-top:4px; max-width:560px; line-height:1.45;}
+  .controls{display:flex; gap:8px; align-items:center; flex-shrink:0;}
+  button{background:transparent; color:var(--ink); border:1px solid var(--dim);
+    font-family:inherit; font-size:13px; letter-spacing:.08em; padding:7px 16px;
+    cursor:pointer; border-radius:1px; transition:all .15s; box-shadow:1px 1px 0 rgba(47,40,24,.25);}
+  button:hover{border-color:var(--blood); color:var(--blood);}
+  button.primary{border-color:var(--ink); box-shadow:inset 0 0 0 1px var(--ink),1px 1px 0 rgba(47,40,24,.25);}
+  .speed{min-width:52px;}
+
+  /* status bar */
+  .status{display:grid; grid-template-columns:150px 210px 150px 1fr; gap:0;
+    border:1px solid var(--rule); background:var(--panel); margin-bottom:12px;}
+  .cell{padding:10px 16px; border-right:1px solid var(--rule);}
+  .cell:last-child{border-right:none;}
+  .cell .label{font-size:10px; letter-spacing:.22em; text-transform:uppercase; color:var(--faint); margin-bottom:3px;}
+  .cell .value{font-size:22px; font-variant-numeric:tabular-nums; line-height:1.15;}
+  #strength{color:var(--advance-hi);}
+  #strength.retreating{color:var(--retreat-hi);}
+  #temp{color:var(--retreat-hi);}
+  #temp .r{font-size:12px; color:var(--dim); font-style:italic;}
+  .eventcell{overflow:hidden;}
+  #eventTitle{font-size:15px; color:var(--advance-hi); font-weight:600; margin-bottom:2px; transition:color .3s;}
+  #eventTitle.cold{color:var(--retreat-hi);}
+  #eventText{font-size:12.5px; color:var(--dim); line-height:1.4; font-style:italic;}
+  .flash{animation:flash .8s ease-out;}
+  @keyframes flash{0%{background:rgba(140,47,27,.12);}100%{background:transparent;}}
+
+  /* timeline slider */
+  .timeline{position:relative; margin:2px 0 10px; padding:4px 0 18px;}
+  input[type=range]{width:100%; -webkit-appearance:none; appearance:none; background:transparent; cursor:pointer; height:22px;}
+  input[type=range]::-webkit-slider-runnable-track{height:3px; background:linear-gradient(90deg,#b98c46 0 47%, #2f2818 68% 100%); border-radius:2px;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:15px; height:15px; margin-top:-6px;
+    border-radius:50%; background:var(--ink); border:2px solid var(--bg); box-shadow:1px 1px 2px rgba(47,40,24,.5);}
+  input[type=range]::-moz-range-track{height:3px; background:linear-gradient(90deg,#b98c46 0 47%, #2f2818 68% 100%); border-radius:2px;}
+  input[type=range]::-moz-range-thumb{width:13px; height:13px; border-radius:50%; background:var(--ink); border:2px solid var(--bg);}
+  .months{position:absolute; left:0; right:0; bottom:0; display:flex; font-size:10px; letter-spacing:.2em; color:var(--faint);}
+  .months span{position:absolute; transform:translateX(-50%);}
+
+  canvas{display:block; width:100%;}
+  #map{border:1px solid var(--dim); outline:1px solid var(--faint); outline-offset:3px;
+    background:radial-gradient(ellipse at 55% 35%, #f2e9cf 0%, #e9dec0 60%, #e0d2ae 100%);}
+  #tempchart{border:1px solid var(--dim); border-top:1px dashed var(--rule); background:#ece1c2;
+    outline:1px solid var(--faint); outline-offset:3px; margin-top:7px;}
+
+  /* legend + ledger */
+  .below{display:flex; gap:24px; margin-top:14px; align-items:flex-start;}
+  .legend{flex-shrink:0; font-size:12px; color:var(--dim); line-height:1.9;}
+  .key{display:inline-block; width:26px; height:9px; border-radius:2px; vertical-align:-1px; margin-right:7px;}
+  .key.a{background:#c59f66; border:1px solid rgba(47,40,24,.55);}
+  .key.r{background:#282118; border:1px solid rgba(20,16,10,.8);}
+  .ledger{flex:1;}
+  .ledger .label{font-size:10px; letter-spacing:.22em; text-transform:uppercase; color:var(--faint); margin-bottom:7px;}
+  .ledger .label b{color:var(--dim); font-weight:normal;}
+  #dots{display:grid; grid-template-columns:repeat(47,1fr); gap:3px;}
+  #dots i{display:block; width:100%; aspect-ratio:1; border-radius:50%; background:var(--advance-hi);
+    transition:background .4s, opacity .4s;}
+  #dots i.dead{background:transparent; box-shadow:inset 0 0 0 1px var(--faint); opacity:.7;}
+  #dots i.cold{background:#282118;}
+
+  @media (max-width:900px){
+    .status{grid-template-columns:150px 1fr;}
+    .cell{border-bottom:1px solid var(--rule);}
+    .eventcell{grid-column:1 / -1;}
+    header{flex-direction:column; align-items:flex-start;}
+  }
+  footer{margin-top:22px; border-top:1px solid var(--rule); padding-top:10px;
+    font-size:11.5px; color:var(--faint); font-style:italic; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;}
+
+  #tooltip{position:fixed; pointer-events:none; background:rgba(246,240,222,.97); border:1px solid var(--dim);
+    color:var(--ink); font-size:12px; padding:7px 10px; border-radius:1px; line-height:1.5;
+    display:none; z-index:10; max-width:230px; box-shadow:2px 3px 10px rgba(47,40,24,.35);}
+  #tooltip .n{color:var(--advance-hi); font-size:14px; font-variant-numeric:tabular-nums; font-weight:600;}
+  #tooltip.cold .n{color:var(--retreat-hi);}
+
+  /* Tolstoy margin note */
+  .tolstoy{margin-top:16px; padding:14px 22px 12px; border-left:3px double var(--faint);
+    max-width:76ch;}
+  .tolstoy .tq{font-style:italic; font-size:14.5px; line-height:1.65; color:var(--ink);
+    transition:opacity .45s;}
+  .tolstoy .tq::before{content:"“"; color:var(--blood); font-size:20px;}
+  .tolstoy .tq::after{content:"”"; color:var(--blood); font-size:20px;}
+  .tolstoy .tc{margin-top:6px; font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--dim);}
+  .tolstoy.fading .tq{opacity:0;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>LA GRANDE ARMÉE <span class="year">· 1812</span></h1>
+      <div class="subtitle">The march on Moscow and the retreat, drawn as a river of men.
+        The band's width is the army's strength — one millimetre for ten thousand lives.
+        After Charles Joseph Minard, 1869.</div>
+    </div>
+    <div class="controls">
+      <button id="playBtn" class="primary">▶ March</button>
+      <button id="speedBtn" class="speed">1×</button>
+      <button id="resetBtn">↺</button>
+    </div>
+  </header>
+
+  <div class="status">
+    <div class="cell"><div class="label">Date</div><div class="value" id="date">24 June 1812</div></div>
+    <div class="cell"><div class="label">Men under arms</div><div class="value" id="strength">422,000</div></div>
+    <div class="cell"><div class="label">Temperature</div><div class="value" id="temp">—</div></div>
+    <div class="cell eventcell" id="eventCell">
+      <div id="eventTitle"></div>
+      <div id="eventText"></div>
+    </div>
+  </div>
+
+  <div class="timeline">
+    <input type="range" id="scrub" min="0" max="173" step="0.25" value="0">
+    <div class="months" id="months"></div>
+  </div>
+
+  <canvas id="map"></canvas>
+  <canvas id="tempchart"></canvas>
+
+  <div class="tolstoy" id="tolstoyBox" hidden>
+    <div class="tq" id="tolstoyQuote"></div>
+    <div class="tc" id="tolstoyCite"></div>
+  </div>
+
+  <div class="below">
+    <div class="legend">
+      <span class="key a"></span>Advance — June to September<br>
+      <span class="key r"></span>Retreat — October to December<br>
+      <span style="color:var(--faint)">Drag the timeline, or hover the band.</span>
+    </div>
+    <div class="ledger">
+      <div class="label">The human ledger — one dot, one thousand men · <b id="ledgerCount">422,000 alive</b></div>
+      <div id="dots"></div>
+    </div>
+  </div>
+
+  <footer>
+    <span>Figurative map of the successive losses in men of the French Army in the Russian campaign 1812–1813.</span>
+    <span>Data: C.J. Minard (1869), digitised by E.R. Tufte &amp; M. Friendly · Temperatures in degrees Réaumur, shown here in Celsius · Passages: Tolstoy, <i>War and Peace</i>, Maude translation (Project Gutenberg #2600).</span>
+  </footer>
+</div>
+<div id="tooltip"></div>
+
+<script>
+'use strict';
+/* ---------------- data (Minard, via Friendly's digitisation) ---------------- */
+const G1A=[[24.0,54.9,340000],[24.5,55.0,340000],[25.5,54.5,340000],[26.0,54.7,320000],
+ [27.0,54.8,300000],[28.0,54.9,280000],[28.5,55.0,240000],[29.0,55.1,210000],
+ [30.0,55.2,180000],[30.3,55.3,175000],[32.0,54.8,145000],[33.2,54.9,140000],
+ [34.4,55.5,127100],[35.5,55.4,100000],[36.0,55.5,100000],[37.6,55.8,100000]];
+const G1R=[[37.7,55.7,100000],[37.5,55.7,98000],[37.0,55.0,97000],[36.8,55.0,96000],
+ [35.4,55.3,87000],[34.3,55.2,55000],[33.3,54.8,37000],[32.0,54.6,24000],
+ [30.4,54.4,20000],[29.2,54.3,20000],[28.5,54.2,20000],[28.3,54.3,20000],
+ [27.5,54.5,20000],[26.8,54.3,12000],[26.4,54.4,14000],[25.0,54.4,8000],
+ [24.4,54.4,4000],[24.1,54.4,4000]];
+const G2A=[[24.0,55.1,60000],[24.5,55.2,60000],[25.5,54.7,60000],[26.6,55.7,40000],
+ [27.4,55.6,33000],[28.7,55.5,33000]];
+const G2R=[[28.7,55.5,33000],[29.2,54.2,30000],[28.5,54.1,30000],[28.3,54.2,28000]];
+const G3A=[[24.0,55.2,22000],[24.5,55.3,22000]];
+const G3R=[[24.6,55.8,6000],[24.2,54.4,6000],[24.1,54.4,6000]];
+
+// day anchors (day 0 = 24 June 1812) : {rawIndex: day}
+const D_G1A={0:0,2:4,9:34,10:54,13:75,15:82};
+const D_G1R={0:117,3:122,6:138,7:143,11:157,14:164,15:167,17:173};
+const D_G2A={0:0,2:8,5:60};   const D_G2R={0:148,1:153,2:155,3:157};
+const D_G3A={0:0,1:6};        const D_G3R={0:120,1:160,2:173};
+
+const CITIES=[[24.0,55.0,"Kowno"],[25.3,54.7,"Wilna"],[26.4,54.4,"Smorgoni"],
+ [27.7,55.2,"Gloubokoe"],[28.5,54.35,"Studienska"],[28.7,55.5,"Polotzk"],
+ [29.2,54.4,"Bobr"],[30.2,55.3,"Witebsk"],[30.4,54.5,"Orscha"],
+ [32.0,54.8,"Smolensk"],[33.2,54.9,"Dorogobouge"],[34.3,55.2,"Wixma"],
+ [36.0,55.5,"Mojaisk"],[36.5,55.0,"Malo-Jaroslavets"],[37.6,55.8,"Moscou"]];
+
+// temperature on the retreat: [lon, °Réaumur, day, label]
+const TEMPS=[[37.6,0,116,"18 Oct"],[36.0,0,122,"24 Oct"],[33.2,-9,138,"9 Nov"],
+ [32.0,-21,143,"14 Nov"],[29.2,-11,153,"24 Nov"],[28.5,-20,157,"28 Nov"],
+ [27.2,-24,160,"1 Dec"],[26.7,-30,165,"6 Dec"],[25.3,-26,166,"7 Dec"]];
+
+const EVENTS=[
+ [0,"The Niemen crossing — 24 June","422,000 men — French, Polish, German, Italian — pour across the river Niemen. Napoleon expects a three-week war.",0],
+ [4,"Vilna — 28 June","The Russians refuse battle and withdraw, burning their stores. Heat, dysentery and desertion begin to bleed the army.",0],
+ [34,"Vitebsk — late July","A quarter of the army is already gone — dead, sick or straggling — without a single major battle having been fought.",0],
+ [54,"Smolensk — 17 August","The first great battle. The city is taken, and found burning. The Russian army slips away to the east once more.",0],
+ [75,"Borodino — 7 September","The bloodiest single day of the Napoleonic wars: some 70,000 men fall in twelve hours. The road to Moscow lies open.",0],
+ [82,"Moscow — 14 September","100,000 men enter a silent, emptied city. That night Moscow begins to burn. Napoleon waits five weeks for a peace offer that never comes.",0],
+ [117,"The retreat — 19 October","Loaded with loot and short of horses, the army marches out of the ruined city as winter gathers.",1],
+ [122,"Maloyaroslavets — 24 October","Kutuzov blocks the fertile southern road. The army is forced back onto the route it stripped bare in August.",1],
+ [138,"Smolensk again — 9 November","37,000 remain. The depots have been looted by the first men to arrive. It is −11°C, and falling.",1],
+ [157,"The Berezina — 26–29 November","General Eblé's Dutch pontoniers, working chest-deep in the ice, throw two bridges across the river. Tens of thousands cross; tens of thousands do not.",1],
+ [164,"Smorgoni — 5 December","At −30° Réaumur, Napoleon hands command to Murat and races for Paris by sleigh. Men freeze where they fall asleep.",1],
+ [173,"The Niemen again — 14 December","Roughly 10,000 effectives stagger back across the river. Of every forty men who crossed in June, one returns under arms.",1]];
+
+/* ---------------- layout & scales ---------------- */
+const DPR=Math.min(window.devicePixelRatio||1,2);
+const W=1100, MAPH=470, TEMPH=170;
+const LON0=23.4, LON1=38.4, LAT0=53.15, LAT1=56.95;
+const PADL=14, PADR=14, PADT=16, PADB=16;
+const X=lon=>PADL+(lon-LON0)/(LON1-LON0)*(W-PADL-PADR);
+const Y=lat=>MAPH-PADB-(lat-LAT0)/(LAT1-LAT0)*(MAPH-PADT-PADB);
+const WSCALE=17/340000;              // half-width px per man
+const R2C=r=>r*1.25;                 // Réaumur → Celsius
+
+const mapC=document.getElementById('map'), tC=document.getElementById('tempchart');
+for(const [c,h] of [[mapC,MAPH],[tC,TEMPH]]){ c.width=W*DPR; c.height=h*DPR; c.style.aspectRatio=W+'/'+h; }
+const mx=mapC.getContext('2d'), tx=tC.getContext('2d');
+mx.scale(DPR,DPR); tx.scale(DPR,DPR);
+
+/* ---------------- ribbon construction ---------------- */
+function catmull(pts,sub){ // returns resampled [{x,y,s,u}]
+  const P=pts.map(p=>({x:X(p[0]),y:Y(p[1]),s:p[2]}));
+  if(P.length===2){ const out=[];
+    for(let j=0;j<=sub;j++){const t=j/sub;
+      out.push({x:P[0].x+(P[1].x-P[0].x)*t, y:P[0].y+(P[1].y-P[0].y)*t, s:P[0].s+(P[1].s-P[0].s)*t});}
+    return out; }
+  const out=[];
+  for(let i=0;i<P.length-1;i++){
+    const p0=P[Math.max(0,i-1)],p1=P[i],p2=P[i+1],p3=P[Math.min(P.length-1,i+2)];
+    const last=(i===P.length-2)?sub:sub-1;
+    for(let j=0;j<=last;j++){const t=j/sub,t2=t*t,t3=t2*t;
+      out.push({
+        x:.5*((2*p1.x)+(-p0.x+p2.x)*t+(2*p0.x-5*p1.x+4*p2.x-p3.x)*t2+(-p0.x+3*p1.x-3*p2.x+p3.x)*t3),
+        y:.5*((2*p1.y)+(-p0.y+p2.y)*t+(2*p0.y-5*p1.y+4*p2.y-p3.y)*t2+(-p0.y+3*p1.y-3*p2.y+p3.y)*t3),
+        s:p1.s+(p2.s-p1.s)*t});}
+  }
+  return out;
+}
+function makeRibbon(raw,dayAnchors,phase,name){
+  const sub=14, pts=catmull(raw,sub);
+  const n=pts.length;
+  pts.forEach((p,i)=>p.u=i/(n-1));
+  // normals + offsets
+  for(let i=0;i<n;i++){
+    const a=pts[Math.max(0,i-1)], b=pts[Math.min(n-1,i+1)];
+    let dx=b.x-a.x, dy=b.y-a.y, L=Math.hypot(dx,dy)||1;
+    const nx=-dy/L, ny=dx/L, h=Math.max(1.1,p2h(pts[i].s));
+    pts[i].lx=pts[i].x+nx*h; pts[i].ly=pts[i].y+ny*h;
+    pts[i].rx=pts[i].x-nx*h; pts[i].ry=pts[i].y-ny*h;
+    pts[i].h=h;
+  }
+  // day per raw point (interp between anchors), then day per resample
+  const rawDays=new Array(raw.length);
+  const keys=Object.keys(dayAnchors).map(Number).sort((a,b)=>a-b);
+  for(let i=0;i<raw.length;i++){
+    let k0=keys[0],k1=keys[keys.length-1];
+    for(const k of keys){ if(k<=i)k0=k; } for(let j=keys.length-1;j>=0;j--){ if(keys[j]>=i)k1=keys[j]; }
+    rawDays[i]= k0===k1 ? dayAnchors[k0] :
+      dayAnchors[k0]+(dayAnchors[k1]-dayAnchors[k0])*(i-k0)/(k1-k0);
+  }
+  const dayAt=u=>{ const f=u*(raw.length-1), i=Math.min(raw.length-2,Math.floor(f)), t=f-i;
+    return rawDays[i]+(rawDays[i+1]-rawDays[i])*t; };
+  const uAtDay=d=>{
+    if(d<=rawDays[0])return 0; if(d>=rawDays[raw.length-1])return 1;
+    for(let i=0;i<raw.length-1;i++) if(d>=rawDays[i]&&d<=rawDays[i+1]){
+      const t=(d-rawDays[i])/((rawDays[i+1]-rawDays[i])||1);
+      return (i+t)/(raw.length-1); }
+    return 1; };
+  return {pts,phase,name,dayAt,uAtDay,day0:rawDays[0],day1:rawDays[raw.length-1]};
+}
+function p2h(s){ return s*WSCALE; }
+
+const ribbons=[
+ makeRibbon(G3A,D_G3A,'A','Niemen flank corps'),
+ makeRibbon(G3R,D_G3R,'R','Niemen flank corps'),
+ makeRibbon(G2A,D_G2A,'A','Northern flank (Oudinot)'),
+ makeRibbon(G2R,D_G2R,'R','Northern flank (Oudinot)'),
+ makeRibbon(G1A,D_G1A,'A','Main army'),
+ makeRibbon(G1R,D_G1R,'R','Main army'),
+];
+const g1a=ribbons[4], g1r=ribbons[5];
+
+function sampleAt(rib,u){
+  const f=u*(rib.pts.length-1), i=Math.min(rib.pts.length-2,Math.max(0,Math.floor(f))), t=f-i;
+  const a=rib.pts[i], b=rib.pts[i+1];
+  return {x:a.x+(b.x-a.x)*t, y:a.y+(b.y-a.y)*t, s:a.s+(b.s-a.s)*t, h:a.h+(b.h-a.h)*t};
+}
+
+/* ---------------- army state at day d ---------------- */
+function g1State(d){
+  if(d<=82) return {...sampleAt(g1a,g1a.uAtDay(d)),phase:'A'};
+  if(d<117) return {...sampleAt(g1a,1),phase:'hold'};
+  return {...sampleAt(g1r,g1r.uAtDay(d)),phase:'R'};
+}
+function flankStrength(rib0,rib1,d){ // advance ribbon, retreat ribbon
+  if(d<=rib0.day1) return sampleAt(rib0,rib0.uAtDay(d)).s;
+  if(d<rib1.day0) return sampleAt(rib0,1).s;
+  return sampleAt(rib1,rib1.uAtDay(d)).s;
+}
+function totalStrength(d){
+  const g1=g1State(d).s;
+  let g2=flankStrength(ribbons[2],ribbons[3],d);
+  if(d>157) g2=0;                       // merges into the main band at the Berezina
+  else if(d>155) g2*= (157-d)/2;
+  const g3=flankStrength(ribbons[0],ribbons[1],d);
+  return Math.round(g1+g2+g3);
+}
+function tempAtDay(d){
+  if(d<TEMPS[0][2]) return null;
+  if(d>=TEMPS[TEMPS.length-1][2]) return TEMPS[TEMPS.length-1][1];
+  for(let i=0;i<TEMPS.length-1;i++) if(d>=TEMPS[i][2]&&d<=TEMPS[i+1][2]){
+    const t=(d-TEMPS[i][2])/((TEMPS[i+1][2]-TEMPS[i][2])||1);
+    return TEMPS[i][1]+(TEMPS[i+1][1]-TEMPS[i][1])*t; }
+  return null;
+}
+
+/* ---------------- drawing ---------------- */
+const ADV_FILL='rgba(197,159,102,0.95)', ADV_EDGE='rgba(47,40,24,0.6)';
+const RET_FILL='rgba(40,33,24,0.94)', RET_EDGE='rgba(20,16,10,0.85)';
+
+function drawRibbonPartial(ctx,rib,uMax){
+  if(uMax<=0)return;
+  const n=rib.pts.length, last=Math.max(1,Math.round(uMax*(n-1)));
+  ctx.beginPath();
+  ctx.moveTo(rib.pts[0].lx,rib.pts[0].ly);
+  for(let i=1;i<=last;i++) ctx.lineTo(rib.pts[i].lx,rib.pts[i].ly);
+  for(let i=last;i>=0;i--) ctx.lineTo(rib.pts[i].rx,rib.pts[i].ry);
+  ctx.closePath();
+  const adv=rib.phase==='A';
+  ctx.fillStyle=adv?ADV_FILL:RET_FILL;
+  ctx.shadowColor='rgba(47,40,24,.28)';
+  ctx.shadowBlur=3; ctx.shadowOffsetX=1; ctx.shadowOffsetY=1;
+  ctx.fill(); ctx.shadowBlur=0; ctx.shadowOffsetX=0; ctx.shadowOffsetY=0;
+  ctx.strokeStyle=adv?ADV_EDGE:RET_EDGE; ctx.lineWidth=.7; ctx.stroke();
+}
+
+function drawRivers(){
+  mx.save(); mx.strokeStyle='rgba(70,100,130,.45)'; mx.lineWidth=1.6; mx.setLineDash([]);
+  const river=(lon,lat0,lat1,label,ly)=>{
+    mx.beginPath();
+    for(let t=0;t<=1;t+=.05){
+      const lat=lat0+(lat1-lat0)*t, x=X(lon+Math.sin(t*9)*0.06), y=Y(lat);
+      t===0?mx.moveTo(x,y):mx.lineTo(x,y);
+    }
+    mx.stroke();
+    mx.fillStyle='rgba(70,100,130,.75)'; mx.font='italic 11px Georgia,serif';
+    mx.fillText(label, X(lon)+6, Y(ly));
+  };
+  river(23.9,53.9,55.6,'Niemen',54.05);
+  river(28.35,53.9,54.9,'Berezina',53.95);
+  river(37.9,55.1,56.1,'Moskva',55.2);
+  mx.restore();
+}
+function drawCities(day){
+  mx.save();
+  for(const [lon,lat,name] of CITIES){
+    const x=X(lon), y=Y(lat);
+    mx.strokeStyle='rgba(47,40,24,.8)'; mx.lineWidth=1;
+    mx.beginPath(); mx.arc(x,y,2.4,0,7); mx.stroke();
+    mx.fillStyle='rgba(47,40,24,.85)'; mx.font='italic 11px Georgia,serif';
+    const dy=(lat>55.3)?-7:15;
+    mx.textAlign='center'; mx.fillText(name,x,y+dy);
+  }
+  // Moscow burning
+  if(day>=82&&day<=104){
+    const x=X(37.6),y=Y(55.8), f=.6+.4*Math.sin(perf*0.013)+.15*Math.sin(perf*0.041);
+    const g=mx.createRadialGradient(x,y,2,x,y,34*f);
+    g.addColorStop(0,'rgba(255,140,50,.55)'); g.addColorStop(.5,'rgba(200,70,30,.22)'); g.addColorStop(1,'rgba(200,70,30,0)');
+    mx.fillStyle=g; mx.beginPath(); mx.arc(x,y,34*f,0,7); mx.fill();
+  }
+  mx.restore();
+}
+
+/* particles */
+const PARTICLES=[];
+function initParticles(){
+  const spec=[[4,320],[5,300],[2,60],[3,50],[0,30],[1,26]]; // [ribbonIdx,count]
+  for(const [ri,count] of spec) for(let i=0;i<count;i++)
+    PARTICLES.push({ri,u:Math.random(),lane:(Math.random()*2-1)*.8,
+      sp:(.00025+Math.random()*.00045),ph:Math.random()*7});
+}
+initParticles();
+function drawParticles(day,uMaxes){
+  for(const p of PARTICLES){
+    const um=uMaxes[p.ri]; if(um<=0.002)continue;
+    p.u+=p.sp*dtms*0.06;
+    if(p.u>um)p.u=um*Math.random()*Math.random();
+    const rib=ribbons[p.ri], smp=sampleAt(rib,p.u);
+    const f=Math.min(rib.pts.length-2,Math.floor(p.u*(rib.pts.length-1)));
+    const a=rib.pts[f],b=rib.pts[f+1];
+    let dx=b.x-a.x,dy=b.y-a.y,L=Math.hypot(dx,dy)||1;
+    const nx=-dy/L,ny=dx/L;
+    const wob=Math.sin(perf*.004+p.ph)*.15;
+    const x=smp.x+nx*smp.h*(p.lane+wob), y=smp.y+ny*smp.h*(p.lane+wob);
+    const adv=rib.phase==='A';
+    mx.fillStyle=adv?'rgba(50,38,18,.4)':'rgba(240,232,210,.75)';
+    mx.beginPath(); mx.arc(x,y,.9,0,7); mx.fill();
+  }
+}
+
+function drawMap(day){
+  mx.clearRect(0,0,W,MAPH);
+  // graticule
+  mx.save(); mx.strokeStyle='rgba(90,75,50,.18)'; mx.lineWidth=1;
+  for(let lon=24;lon<=38;lon+=2){ mx.beginPath(); mx.moveTo(X(lon),PADT); mx.lineTo(X(lon),MAPH-PADB); mx.stroke();
+    mx.fillStyle='rgba(107,92,66,.65)'; mx.font='9px Georgia,serif'; mx.textAlign='center';
+    mx.fillText(lon+'°E',X(lon),MAPH-4);}
+  mx.restore();
+  drawRivers();
+  const uMaxes=ribbons.map(r=>{
+    if(day<=r.day0)return 0; if(day>=r.day1)return 1; return r.uAtDay(day); });
+  for(let i=0;i<ribbons.length;i++) drawRibbonPartial(mx,ribbons[i],uMaxes[i]);
+  drawCities(day);
+  drawParticles(day,uMaxes);
+  // marker
+  const st=g1State(day);
+  const pulse=1+.25*Math.sin(perf*.006);
+  mx.save();
+  mx.strokeStyle='rgba(140,47,27,.9)';
+  mx.lineWidth=1.5;
+  mx.beginPath(); mx.arc(st.x,st.y,(st.h+5)*pulse*.5+4,0,7); mx.stroke();
+  mx.fillStyle='#8c2f1b';
+  mx.beginPath(); mx.arc(st.x,st.y,2.2,0,7); mx.fill();
+  mx.restore();
+  // title cartouche
+  mx.save(); mx.fillStyle='rgba(47,40,24,.55)'; mx.font='italic 13px Georgia,serif'; mx.textAlign='left';
+  mx.fillText('Carte figurative des pertes successives en hommes de l’Armée française · 1812–1813', PADL+4, PADT+12);
+  mx.restore();
+}
+
+/* temperature panel */
+const TY0=26, TY1=TEMPH-30;
+const TYS=c=>TY0+( -c/40 )*(TY1-TY0); // 0°C at top, −40 at bottom
+function drawTemps(day){
+  tx.clearRect(0,0,W,TEMPH);
+  tx.save();
+  tx.fillStyle='rgba(107,92,66,.85)'; tx.font='10px Georgia,serif'; tx.textAlign='left';
+  tx.fillText('TEMPERATURE ON THE RETREAT',PADL+4,14);
+  // grid
+  tx.textAlign='right';
+  for(const c of [0,-10,-20,-30]){
+    tx.strokeStyle=c===0?'rgba(46,88,113,.5)':'rgba(90,75,50,.22)';
+    tx.setLineDash(c===0?[]:[3,4]);
+    tx.beginPath(); tx.moveTo(PADL,TYS(c)); tx.lineTo(W-PADR,TYS(c)); tx.stroke();
+    tx.fillStyle='rgba(107,92,66,.75)'; tx.fillText(c+'°C',W-PADR-2,TYS(c)-3);
+  }
+  tx.setLineDash([]);
+  const vis=TEMPS.filter(t=>t[2]<=day);
+  if(vis.length>1){
+    // area
+    tx.beginPath();
+    vis.forEach((t,i)=>{const x=X(t[0]),y=TYS(R2C(t[1])); i?tx.lineTo(x,y):tx.moveTo(x,y);});
+    const lastX=X(vis[vis.length-1][0]), firstX=X(vis[0][0]);
+    tx.lineTo(lastX,TY1+14); tx.lineTo(firstX,TY1+14); tx.closePath();
+    const g=tx.createLinearGradient(0,TY0,0,TY1);
+    g.addColorStop(0,'rgba(46,88,113,.04)'); g.addColorStop(1,'rgba(46,88,113,.18)');
+    tx.fillStyle=g; tx.fill();
+    tx.beginPath();
+    vis.forEach((t,i)=>{const x=X(t[0]),y=TYS(R2C(t[1])); i?tx.lineTo(x,y):tx.moveTo(x,y);});
+    tx.strokeStyle='rgba(35,50,65,.9)'; tx.lineWidth=1.4; tx.stroke();
+  }
+  for(const t of vis){
+    const x=X(t[0]),y=TYS(R2C(t[1]));
+    // dashed connector to the map above (classic Minard device)
+    tx.strokeStyle='rgba(46,88,113,.35)'; tx.setLineDash([2,4]);
+    tx.beginPath(); tx.moveTo(x,y); tx.lineTo(x,0); tx.stroke(); tx.setLineDash([]);
+    tx.fillStyle='#233241'; tx.beginPath(); tx.arc(x,y,2.6,0,7); tx.fill();
+    tx.fillStyle='rgba(35,50,65,.95)'; tx.font='10px Georgia,serif'; tx.textAlign='center';
+    tx.fillText(Math.round(R2C(t[1]))+'°',x,y+14);
+    tx.fillStyle='rgba(107,92,66,.85)'; tx.fillText(t[3],x,TY1+24);
+  }
+  // current marker
+  const st=g1State(day), c=tempAtDay(day);
+  if(st.phase==='R'&&c!==null){
+    const x=st.x;
+    tx.strokeStyle='rgba(140,47,27,.55)';
+    tx.beginPath(); tx.moveTo(x,0); tx.lineTo(x,TEMPH-24); tx.stroke();
+  }
+  tx.restore();
+}
+
+/* ---------------- HUD / ledger / events ---------------- */
+const fmt=n=>n.toLocaleString('en-US');
+const dateEl=document.getElementById('date'), strEl=document.getElementById('strength'),
+      tmpEl=document.getElementById('temp'), evT=document.getElementById('eventTitle'),
+      evX=document.getElementById('eventText'), evCell=document.getElementById('eventCell'),
+      ledgerCount=document.getElementById('ledgerCount');
+const dotsEl=document.getElementById('dots'), DOTN=422, dotArr=[];
+for(let i=0;i<DOTN;i++){const d=document.createElement('i'); dotsEl.appendChild(d); dotArr.push(d);}
+const BASE=new Date(1812,5,24);
+function dateStr(d){ const dt=new Date(BASE.getTime()+d*864e5);
+  return dt.getDate()+' '+dt.toLocaleString('en-GB',{month:'long'})+' 1812'; }
+let lastEvent=-1;
+/* War and Peace, Maude translation (Project Gutenberg #2600) — verbatim, verified against the source text */
+const WP_QUOTES=[
+ {day:0,citation:"Book Nine, Ch. II",quote:"and, commanding the Uhlans to follow him, spurred his horse and galloped into the river. He gave an angry thrust to his horse, which had grown restive under him, and plunged into the water, heading for the deepest part where the current was swift. Hundreds of Uhlans galloped in after him."},
+ {day:4,citation:"Book Nine, Ch. XII",quote:"The troops retired from Vilna for various complicated reasons of state, political and strategic. Each step of the retreat was accompanied by a complicated interplay of interests, arguments, and passions at headquarters. … It was only at headquarters that there was depression, uneasiness, and intriguing; in the body of the army they did not ask themselves where they were going or why."},
+ {day:34,citation:"Book Ten, Ch. V",quote:"The artillery and baggage wagons moved noiselessly through the deep dust that rose to the very hubs of the wheels, and the infantry sank ankle-deep in that soft, choking, hot dust that never cooled even at night. … The higher the sun rose the higher rose that cloud of dust, and through the screen of its hot fine particles one could look with naked eye at the sun, which showed like a huge crimson ball in the unclouded sky."},
+ {day:54,citation:"Book Ten, Ch. IV",quote:"\"Loot everything, lads! Don't let those devils get it!\" he cried, taking some bags of flour himself and throwing them into the street. … On seeing Alpatych, Ferapontov turned to him: \"Russia is done for!\" he cried. \"Alpatych, I'll set the place on fire myself. We're done for!...\""},
+ {day:75,citation:"Book Ten, Ch. XXXII",quote:"But behind the veil of smoke the sun was still high, and in front and especially to the left, near Semenovsk, something seemed to be seething in the smoke, and the roar of cannon and musketry did not diminish, but even increased to desperation like a man who, straining himself, shrieks with all his remaining strength."},
+ {day:82,citation:"Book Eleven, Ch. XX",quote:"Meanwhile Moscow was empty. There were still people in it, perhaps a fiftieth part of its former inhabitants had remained, but it was empty. It was empty in the sense that a dying queenless hive is empty. … So in the same way Moscow was empty when Napoleon, weary, uneasy, and morose, paced up and down in front of the Kammer-Kollezski rampart, awaiting what to his mind was a necessary, if but formal, observance of the proprieties--a deputation."},
+ {day:100,citation:"Book Eleven, Ch. XXXIII",quote:"The conflagration, at which he had looked with so much indifference the evening before, had greatly increased during the night. Moscow was on fire in several places. The buildings in Carriage Row, across the river, in the Bazaar and the Povarskoy, as well as the barges on the Moskva River and the timber yards by the Dorogomilov Bridge, were all ablaze."},
+ {day:117,citation:"Book Thirteen, Ch. II",quote:"The beast wounded at Borodino was lying where the fleeing hunter had left him; but whether he was still alive, whether he was strong and merely lying low, the hunter did not know. Suddenly the beast was heard to moan. The moan of that wounded beast (the French army) which betrayed its calamitous condition was the sending of Lauriston to Kutuzov's camp with overtures for peace."},
+ {day:138,citation:"Book Fourteen, Ch. VIII",quote:"Now, why have you kept this lad?\" he went on, swaying his head. \"Because you are sorry for him! Don't we know those 'receipts' of yours? You send a hundred men away, and thirty get there. The rest either starve or get killed. So isn't it all the same not to send them?\""},
+ {day:157,citation:"Book Fourteen, Ch. X",quote:"It fled like a wounded animal and it was impossible to block its path. This was shown not so much by the arrangements it made for crossing as by what took place at the bridges. When the bridges broke down, unarmed soldiers, people from Moscow and women with children who were with the French transport, all--carried on by vis inertiae--pressed forward into boats and into the ice-covered water and did not surrender."},
+ {day:164,citation:"Book Fourteen, Ch. VII",quote:"All day it had been calm and frosty with occasional lightly falling snow and toward evening it began to clear. Through the falling snow a purple-black and starry sky showed itself and the frost grew keener. … Like some huge many-limbed animal, the regiment began to prepare its lair and its food."},
+ {day:173,citation:"Book Fourteen, Ch. I",quote:"But then, in 1812, the French gain a victory near Moscow. Moscow is taken and after that, with no further battles, it is not Russia that ceases to exist, but the French army of six hundred thousand, and then Napoleonic France itself. … After the French victory at Borodino there was no general engagement nor any that were at all serious, yet the French army ceased to exist."}
+];
+const tBox=document.getElementById('tolstoyBox'), tQ=document.getElementById('tolstoyQuote'),
+      tCite=document.getElementById('tolstoyCite');
+let lastQuote=-1, quoteTimer=null;
+function updateQuote(day){
+  if(!WP_QUOTES.length)return;
+  tBox.hidden=false;
+  let qi=0; for(let i=0;i<WP_QUOTES.length;i++) if(WP_QUOTES[i].day<=day+0.01)qi=i;
+  if(qi===lastQuote)return;
+  lastQuote=qi;
+  const apply=()=>{ tQ.textContent=WP_QUOTES[qi].quote;
+    tCite.textContent='— War and Peace, '+WP_QUOTES[qi].citation+' (Maude tr.)';
+    tBox.classList.remove('fading'); };
+  clearTimeout(quoteTimer);
+  if(!tQ.textContent){apply();return;}
+  tBox.classList.add('fading');
+  quoteTimer=setTimeout(apply,450);
+}
+function updateHUD(day){
+  updateQuote(day);
+  dateEl.textContent=dateStr(day);
+  const tot=totalStrength(day), st=g1State(day), retreating=st.phase==='R';
+  strEl.textContent=fmt(tot);
+  strEl.classList.toggle('retreating',retreating);
+  const c=retreating?tempAtDay(day):null;
+  tmpEl.innerHTML=c===null?'—':Math.round(R2C(c)*10)/10+'°C <span class="r">'+Math.round(c)+'°R</span>';
+  // event
+  let ei=0; for(let i=0;i<EVENTS.length;i++) if(EVENTS[i][0]<=day+0.01)ei=i;
+  if(ei!==lastEvent){
+    lastEvent=ei;
+    evT.textContent=EVENTS[ei][1]; evX.textContent=EVENTS[ei][2];
+    evT.classList.toggle('cold',!!EVENTS[ei][3]);
+    evCell.classList.remove('flash'); void evCell.offsetWidth; evCell.classList.add('flash');
+  }
+  // ledger
+  const alive=Math.round(tot/1000);
+  for(let i=0;i<DOTN;i++){
+    const a=i<alive;
+    dotArr[i].classList.toggle('dead',!a);
+    dotArr[i].classList.toggle('cold',a&&retreating);
+  }
+  ledgerCount.textContent=fmt(tot)+(day>=173?' came home':' alive');
+}
+
+/* ---------------- interaction & loop ---------------- */
+const scrub=document.getElementById('scrub');
+const playBtn=document.getElementById('playBtn'), speedBtn=document.getElementById('speedBtn'),
+      resetBtn=document.getElementById('resetBtn');
+let day=0, playing=false, speed=1, perf=0, lastT=null, dtms=16;
+const SPEEDS=[1,2,4], DAYS_PER_SEC=2.2;
+
+function setDay(d,fromScrub){
+  day=Math.max(0,Math.min(173,d));
+  if(!fromScrub)scrub.value=day;
+  updateHUD(day);
+}
+scrub.addEventListener('input',()=>{ pause(); setDay(parseFloat(scrub.value),true); });
+function play(){ if(day>=173)setDay(0); playing=true; playBtn.textContent='❚❚ Halt'; playBtn.classList.add('primary'); }
+function pause(){ playing=false; playBtn.textContent='▶ March'; }
+playBtn.addEventListener('click',()=>playing?pause():play());
+resetBtn.addEventListener('click',()=>{ pause(); setDay(0); });
+speedBtn.addEventListener('click',()=>{ speed=SPEEDS[(SPEEDS.indexOf(speed)+1)%SPEEDS.length]; speedBtn.textContent=speed+'×'; });
+document.addEventListener('keydown',e=>{ if(e.code==='Space'){e.preventDefault(); playing?pause():play();} });
+
+// month ticks
+const monthsEl=document.getElementById('months');
+[['JUN',0],['JUL',7],['AUG',38],['SEP',69],['OCT',99],['NOV',130],['DEC',160]].forEach(([m,d])=>{
+  const s=document.createElement('span'); s.textContent=m; s.style.left=(d/173*100)+'%'; monthsEl.appendChild(s);});
+
+// tooltip
+const tip=document.getElementById('tooltip');
+mapC.addEventListener('mousemove',e=>{
+  const r=mapC.getBoundingClientRect(), sx=W/r.width;
+  const px=(e.clientX-r.left)*sx, py=(e.clientY-r.top)*sx;
+  let best=null,bd=18*18;
+  for(const rib of ribbons){
+    const um=(day<=rib.day0)?0:(day>=rib.day1?1:rib.uAtDay(day));
+    const last=Math.round(um*(rib.pts.length-1));
+    for(let i=0;i<=last;i+=2){
+      const p=rib.pts[i], dx=p.x-px, dy=p.y-py, d2=dx*dx+dy*dy-p.h*p.h*0.5;
+      if(d2<bd){bd=d2;best={rib,p};}
+    }
+  }
+  if(best){
+    let city='',cd=1e9;
+    for(const [lon,lat,name] of CITIES){const dx=X(lon)-best.p.x,dy=Y(lat)-best.p.y,d=dx*dx+dy*dy; if(d<cd){cd=d;city=name;}}
+    const adv=best.rib.phase==='A';
+    tip.innerHTML='<span class="n">'+fmt(Math.round(best.p.s))+'</span> men<br>'+
+      best.rib.name+' · '+(adv?'advance':'retreat')+'<br><span style="color:var(--dim)">near '+city+'</span>';
+    tip.classList.toggle('cold',!adv);
+    tip.style.display='block';
+    tip.style.left=(e.clientX+14)+'px'; tip.style.top=(e.clientY+10)+'px';
+  } else tip.style.display='none';
+});
+mapC.addEventListener('mouseleave',()=>tip.style.display='none');
+
+function frame(t){
+  if(lastT!==null){ dtms=Math.min(50,t-lastT); perf=t;
+    if(playing){ setDay(day+DAYS_PER_SEC*speed*dtms/1000);
+      if(day>=173){ setDay(173); pause(); } } }
+  lastT=t;
+  drawMap(day); drawTemps(day);
+  requestAnimationFrame(frame);
+}
+updateHUD(0);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
